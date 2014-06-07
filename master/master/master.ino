@@ -7,10 +7,12 @@ Other times values will be send accordingly
 #define START 1
 #define END 2
 #define WAITING 3
-#define DISTANCE 0.75
+#define RUNNING 4
+#define DISTANCE 100
 #define INITIAL_KM 50
 #define KM 30
 #define WAITING_HOUR 30
+#define DIVIDER 250
 
 
 unsigned long rpm=0;
@@ -24,18 +26,20 @@ const int ledPin3=11;
 const int input =8;      //input of the taxi meter sensor
 
 //Variables to store temporary values
-int distance=90;
-int cost=89;
-int time=678;  //time per 5 rounds
-int speedVal=111;
-int timerValue=0;
-int waitingTime=0;
+long distance=0;
+long distanceDiv=0;
+long cost=0;
+long time=0;  //time per 5 rounds
+long speedVal=0;
+long timerValue=0;
+long waitingTime=0;
 
 //Variables to store temporary states
 boolean startJourneyVal=false;
 boolean endJourneyVal=false;
 boolean waitingVal=false;
 boolean onJourney=false;//have to implement the mechanism
+
 
 // Variables will change:
 int startLedState = HIGH;         // the current state of the output pin
@@ -92,22 +96,7 @@ while(true){
     // reset the debouncing timer
     lastStartDebounceTime = millis();
   }
-  if ((millis() - lastStartDebounceTime) > debounceDelay) {
-    // whatever the reading is at, it's been there for longer
-    // than the debounce delay, so take it as the actual current state:
 
-    // if the button state has changed:
-    if (reading != startButtonState) {
-      startButtonState = reading;
-
-      // only toggle the LED if the new button state is HIGH
-      if (startButtonState == HIGH) {
-        startLedState = !startLedState;//remove this line from the code not necessary
-        startJourneyVal=true;
-        
-      }
-    }
-  }
   
   if ((millis() - lastStartDebounceTime) > debounceDelay) {
     // whatever the reading is at, it's been there for longer
@@ -122,13 +111,7 @@ while(true){
         startLedState = !startLedState;//remove this line from the code not necessary
         startJourneyVal=true;
         
-        Wire.beginTransmission(4);//transmit to device #4
-        Wire.write(distance);
-        Wire.write(cost);
-        Wire.write(time);
-        Wire.write(speedVal);
-        Wire.write(START);
-        Wire.endTransmission();
+        sendToSlave(START);
         
       }
     }
@@ -139,6 +122,7 @@ while(true){
   }  
   
   //check the end button state 
+  if(startJourneyVal){
    if ((millis() - lastEndDebounceTime) > debounceDelay) {
     // whatever the reading is at, it's been there for longer
     // than the debounce delay, so take it as the actual current state:
@@ -151,17 +135,12 @@ while(true){
       if (endButtonState == HIGH) {
         endLedState = !endLedState;
         endJourneyVal=true;
-        Wire.beginTransmission(4);//transmit to device #4
-        //Wire.write("x is ");
-        Wire.write(distance);
-        Wire.write(cost);
-        Wire.write(time);
-        Wire.write(END);
-        
-        Wire.endTransmission();
+        sendToSlave(END);
         
       }
     }
+  }
+  
   }
   
   // set the LEDs:
@@ -172,6 +151,8 @@ while(true){
   lastStartButtonState = reading;
   lastEndButtonState=readingEnd;
   
+  //check for the rpm
+  if(startJourneyVal){
     if ((millis() - lastInputDebounceTime) > debounceDelay) {
     // whatever the reading is at, it's been there for longer
     // than the debounce delay, so take it as the actual current state:
@@ -183,24 +164,28 @@ while(true){
       // only toggle the LED if the new button state is HIGH
       if (inputButtonState == HIGH) {
         inputLedState = !inputLedState;
-       rpm
-        
+       rpm++;
+        if(rpm%5==0)
+          onJourney=true;
       }
     }
+  }
   }
     //calculate the journey
     
     
   if(startJourneyVal){
     rpmPrev=rpm;
+    if(onJourney){
       calculateDistance();
       calculateSpeed();
       calculateFare();
-      
+      sendToSlave(RUNNING);
+      onJourney=false;
+    }
       
       if(endJourneyVal){
-        startJourneyVal=false;
-        endJourneyVal=false;
+        clear();
         
       }
       if(waitingVal){
@@ -208,8 +193,10 @@ while(true){
         calculateWaitingTime();
         calculateFare();
       }
-      sendToSlave();
+    //  sendToSlave();
   }
+  
+  lastInputButtonState=readingInput;
   //calculation for waiting
   //enable waitng and call for appropriate methods to do the rest
   //
@@ -219,10 +206,12 @@ while(true){
 }
 void calculateDistance(){
   rpm++;
-  distance=rpam*DISTANCE;
+  distance=rpm*DISTANCE;
+  
+ 
 }
 void calculateWaitingTime(){
-  if(rpmVal==rpm){
+  if(rpmPrev==rpm){
     waitingVal=true;
     //timer on  
   }
@@ -243,16 +232,42 @@ void calculateFare(){
   if(distance<=1000)
     cost=INITIAL_KM;
   else{
-    cost+=(distance-1000)*KM;
+    cost+=((distance-1000)/1000)*KM;
   }
 
 }
-void sendToSlave(){
-  
+void sendToSlave(int message){
+        Wire.beginTransmission(4);//transmit to device #4  
+         
+        int distance1; 
+        
+        Wire.write(distance/(DIVIDER*DIVIDER));
+       //Wire.write(distance%(DIVIDER*DIVIDER));
+        distance1=distance%(DIVIDER*DIVIDER);
+        Wire.write(distance1/DIVIDER);
+        Wire.write(distance1%DIVIDER);
+        
+        Wire.write(cost/DIVIDER);
+        Wire.write(cost%DIVIDER);
+        
+        Wire.write(time/DIVIDER);
+        Wire.write(time%DIVIDER);
+        
+        Wire.write(speedVal/DIVIDER);
+        Wire.write(speedVal/DIVIDER);
+        Wire.write(message);
+        Wire.endTransmission();
 
 }
 void clear(){
+
+  startJourneyVal=false;
+  endJourneyVal=false;
+  rpm=0;
+  rpmPrev=0;
   rpm=0;
   distance=0;
+  cost=0;
+  time=0;
   
 }

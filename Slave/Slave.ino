@@ -33,6 +33,7 @@
 #include <Wire.h>
 #include <Time.h>
 
+#define DIVIDER 250
 #define LATCH  12  //pin 12 of BBFuino connect to RCK of 8x7segment module 
 #define CLOCK  11  //pin 11 of BBFuino connect to SCK of 8x7segment module 
 #define DATA   10  //pin 10 of BBFuino connect to DIO of 8x7segment module 
@@ -47,16 +48,17 @@
 // initialize the library with the numbers of the interface pins
 #define START 1
 #define END 2
+#define RUNNING 4
 
 LiquidCrystal lcd(8, 9, 4, 5, 6, 7);
-unsigned int totalDistance=0;
+unsigned long totalDistance=0;
 unsigned long totalTime=0;
 unsigned long totalIncome=0;
 
-int distance=20;
-double cost=12000;
-int time=20;
-double speedVal=30;
+double distance=0;
+double cost=0;
+long time=0;
+double speedVal=0;
 
 boolean startJourneyVal=false;
 boolean endJourneyVal=false;
@@ -203,13 +205,11 @@ void fare(byte justify, unsigned long value)
        {
          if(decimal[e-1] != 0)          
          {
-           display8x7segment(DATA, CLOCK, LATCH, anode[e-1], cathode[decimal[e-1]]);
-           
+           display8x7segment(DATA, CLOCK, LATCH, anode[e-1], cathode[decimal[e-1]]);        
            zero = 1;     
          }
        }
-       else{ display8x7segment(DATA, CLOCK, LATCH, anode[e-1], cathode[decimal[e-1]]);
-             
+       else{ display8x7segment(DATA, CLOCK, LATCH, anode[e-1], cathode[decimal[e-1]]);      
        }
      
      delay(MultiplexDelay); 
@@ -270,13 +270,11 @@ void speedAndDistance(unsigned long speedVal, unsigned long value)
        {
          if(decimal[e-1] != 0)          
          {
-           display8x7segment(DATA2, CLOCK2, LATCH2, anode[e-1], cathode[decimal[e-1]]);
-           
+           display8x7segment(DATA2, CLOCK2, LATCH2, anode[e-1], cathode[decimal[e-1]]);     
            zero = 1;     
          }
        }
-       else{ display8x7segment(DATA2, CLOCK2, LATCH2, anode[e-1], cathode[decimal[e-1]]);
-             
+       else{ display8x7segment(DATA2, CLOCK2, LATCH2, anode[e-1], cathode[decimal[e-1]]);    
        }
      
      delay(MultiplexDelay); 
@@ -292,7 +290,6 @@ void speedAndDistance(unsigned long speedVal, unsigned long value)
          if(decimal[e-1] != 0)         
          {
            display8x7segment(DATA2, CLOCK2, LATCH2, anode[2], cathode[decimal[e-1]]);
-           
            zero = 1;
            d ++;     
            delay(MultiplexDelay); 
@@ -338,24 +335,26 @@ void setup() {
 void loop(){ 
   welcome();
   showLicenseDate();
- // startJourney();//temporary
- // waiting();//temporary
- // endJourney();//temporary
- // summery();//temporary
+  
   while(true){
     if(startJourneyVal){
       if(sMessage){
         startJourney();
         sMessage=false;
       }
+      
       running();
       
       if(endJourneyVal){
         endJourney();
+        endJourneyVal=false;
+        startJourneyVal=false;
       }
       else if(waitingVal){
         waiting();
+        waitingVal=false;
       }
+     
     }
     
     else commonDisplay();
@@ -438,34 +437,40 @@ void startJourney(){
 }
 void running(){
   //display fare distance and speed
-  lcd.print("FARE    :");
-  lcd.print(cost);
-  lcd.setCursor(0,1);
-  lcd.print("DISTANCE:");
-  lcd.print(distance);
-  displayFare();
-  displaySpeed();
-  displayDistance();
+
+  while(!endJourneyVal & !waitingVal){
+  
+        lcdDisplayFare()
+        lcd.setCursor(0,1);
+        lcdDisplayDistance();
+        
+        fare(RIGHT, cost);
+        speedAndDistance(speedVal,distance);
+        lcd.clear();
+}
+ // displaySpeed();
+ // displayDistance();
   delay(2000);
   //display in the 7 segments also
- 
-  lcd.clear();
+  
 }
 void endJourney(){
   lcd.clear();
+  
   lcd.print("Your Journey");
   lcd.setCursor(3,1);
   lcd.print("Ends");
   delay(2000);
   lcd.clear();
  // lcd.setCursor(6,0);
-  lcd.print("FARE    :");
-  lcd.print(cost);
+  
+  lcdDisplayFare();
   lcd.setCursor(0,1);
-  lcd.print("DISTANCE:");
-  lcd.print(distance);
-  delay(20000);
+  
+  lcdDisplayDistance()
+  delay(5000);
   //display in the 7 segments also
+  
   displayFare();
   displayWaitingTime();
   displayDistance();
@@ -476,16 +481,13 @@ void waiting(){
   lcd.clear();
   lcd.print("Waiting");
   lcd.setCursor(0,1);
-  lcd.print("Time: ");
-  lcd.print(time);
+  lcdDisplayTime();
   delay(2000);
   lcd.clear();
   // lcd.setCursor(6,0);
-  lcd.print("FARE:  ");
-  lcd.print(cost);
+  lcdDisplayFare()
   lcd.setCursor(0,1);
-  lcd.print("TIME:  ");
-  lcd.print(time);
+
   //Display in the 7 segment
   displayFare();
   displayWaitingTime();
@@ -523,24 +525,40 @@ void receiveEvent(int howMany)
     char c = Wire.read(); // receive byte as a character
     Serial.print(c);         // print the character
   }*/
-  distance=Wire.read();
-  cost=Wire.read();
-  time=Wire.read();
-  speedVal=Wire.read();
-  int x = Wire.read();    // receive byte as an integer
+  distance=DIVIDER*DIVIDER*Wire.read();
+  distance+=DIVIDER*Wire.read();
+  distance+=Wire.read();
+  distance=distance/1000;
+
+  cost=DIVIDER*Wire.read();
+  cost+=Wire.read();
+  
+  time=DIVIDER*Wire.read();
+  time+=Wire.read();
+  
+  speedVal=DIVIDER*Wire.read();
+  speedVal+=Wire.read();
+  
+  int x = Wire.read();          // receive byte as an integer
   
  // Serial.println(x);         // print the integer
   if(x==START){
-    //start journey 
+                              //start journey 
     startJourneyVal=true;
   }
   else if(x==END){
-    //end journey
+                              //end journey
     totalDistance+=distance;
     totalIncome+=cost;
     startJourneyVal=false;
     endJourneyVal=true;
     
+  }
+  else if(x==RUNNING){
+    //totalDistance+=distance;
+    //totalIncome+=cost;
+    //totalTime+=time;
+    x=0;
   }
   
   //update cost waiting time and distance accordingly
@@ -559,7 +577,11 @@ void showLicenseDate(){
 
 void commonDisplay(){
   lcd.clear();
-  lcd.print("Common Display");
+  lcd.print("T. Income:");
+  lcd.print(totalIncome);
+  lcd.setCursor(0,1);
+  lcd.print("T. Dist:");
+  lcd.print(totalDistance);
   delay(300);
   lcd.clear();
 }
@@ -567,10 +589,7 @@ void commonDisplay(){
 void displayFare(){
 //delay(3000);
 //fare(RIGHT,400);
-while(!endJourneyVal & !waitingVal){
-  fare(RIGHT, cost);
-  speedAndDistance(speedVal,distance);
-}
+
 }
 void displaySpeed(){
 
@@ -583,5 +602,18 @@ void displayDistance(){
 
 
 }
+void lcdDisplayFare(){
+      lcd.print("FARE    :");
+      lcd.print(cost);
+}
+void lcdDisplayDistance(){
+      lcd.print("DISTANCE:");
+      lcd.print(distance);
+}
+void lcdDisplayTime(){
+      lcd.print("TIME:  ");
+      lcd.print(time);
+}
+
 
 
