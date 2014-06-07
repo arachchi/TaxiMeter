@@ -4,11 +4,13 @@ Other times values will be send accordingly
 */
 // set pin numbers:
 #include<Wire.h>
+#include<TimerOne.h>
+
 #define START 1
 #define END 2
 #define WAITING 3
 #define RUNNING 4
-#define DISTANCE 100
+#define DISTANCE 0.75
 #define INITIAL_KM 50
 #define KM 30
 #define WAITING_HOUR 30
