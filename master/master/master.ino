@@ -4,7 +4,8 @@ Other times values will be send accordingly
 */
 // set pin numbers:
 #include<Wire.h>
-#include<TimerOne.h>
+//#include<TimerOne.h>
+#include<StopWatch.h>
 
 #define START 1
 #define END 2
@@ -17,6 +18,7 @@ Other times values will be send accordingly
 #define DIVIDER 250
 
 
+StopWatch timer(StopWatch::SECONDS);
 unsigned long rpm=0;
 unsigned long rpmPrev=0;
 
@@ -35,12 +37,16 @@ long time=0;  //time per 5 rounds
 long speedVal=0;
 long timerValue=0;
 long waitingTime=0;
+int hours=0;
+int minutes=0;
 
 //Variables to store temporary states
 boolean startJourneyVal=false;
 boolean endJourneyVal=false;
 boolean waitingVal=false;
 boolean onJourney=false;//have to implement the mechanism
+boolean setTimer=false;
+boolean waitingStart=true;
 
 
 // Variables will change:
@@ -73,6 +79,8 @@ void setup() {
   // set initial LED state
   digitalWrite(ledPin, startLedState);
   digitalWrite(ledPin2,endLedState);
+  
+  
   
   //communication between the slave starts
   Wire.begin();
@@ -112,7 +120,10 @@ while(true){
       if (startButtonState == HIGH) {
         startLedState = !startLedState;//remove this line from the code not necessary
         startJourneyVal=true;
-        
+        if(setTimer){
+          setTimer=false;
+          timer.start();
+        }
         sendToSlave(START);
         
       }
@@ -152,7 +163,7 @@ while(true){
   // it'll be the lastStartButtonState:
   lastStartButtonState = reading;
   lastEndButtonState=readingEnd;
-  
+    rpmPrev=rpm;
   //check for the rpm
   if(startJourneyVal){
     if ((millis() - lastInputDebounceTime) > debounceDelay) {
@@ -177,8 +188,26 @@ while(true){
     
     
   if(startJourneyVal){
-    rpmPrev=rpm;
+    if(rpmPrev==rpm){
+      timer.stop();
+      timer.reset();
+      if(waitingStart){
+        waitingStart=false;//to stop starting the timer again
+        timer.start();
+      }
+      else{
+        calculateWaitingTime();
+        sendToSlave(WAITING);
+      }
+      timer.start();
+    }
     if(onJourney){
+      if(waitingStart==false){
+          waitingStart=true;
+          timer.stop();
+          timer.reset();
+          timer.start();
+      }
       calculateDistance();
       calculateSpeed();
       calculateFare();
@@ -207,7 +236,7 @@ while(true){
   
 }
 void calculateDistance(){
-  rpm++;
+ // rpm++;
   distance=rpm*DISTANCE;
   
  
@@ -217,15 +246,21 @@ void calculateWaitingTime(){
     waitingVal=true;
     //timer on  
   }
-  //waitingTime=timer
-
+  waitingTime=timer.elapsed();
+  if(waitingTime>=3600){
+    cost+=WAITING_HOUR;
+    waitingTime-3600;
+  }
 }
 void calculateSpeed(){
   //timerValue update from the timer
   if(rpm!=0 & rpm%5 == 0){
-    time=timerValue;//this should be updated with the timer value
+    time=timer.elapsed();//this should be updated with the timer value
+    timer.stop();
+    timer.reset();
+    timer.start();
     speedVal=5*DISTANCE/time;
-    timerValue=0;
+    
     //reset the timer
   }
 
@@ -271,5 +306,17 @@ void clear(){
   distance=0;
   cost=0;
   time=0;
-  
+  timerValue=0;
+  hours=0;
+  minutes=0;
+  setTimer=false;
+}
+
+void timeUp(){
+  timerValue++;
+  time=timerValue;//temporary value
+  if(timerValue==0){
+    hours++;
+    minutes=0;
+  }
 }

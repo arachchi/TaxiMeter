@@ -49,6 +49,7 @@
 #define START 1
 #define END 2
 #define RUNNING 4
+#define WAITING 3
 
 LiquidCrystal lcd(8, 9, 4, 5, 6, 7);
 unsigned long totalDistance=0;
@@ -242,6 +243,8 @@ void fare(byte justify, unsigned long value)
      
    }
 }
+
+
 void speedAndDistance(unsigned long speedVal, unsigned long value)
 {
 
@@ -440,7 +443,7 @@ void running(){
 
   while(!endJourneyVal & !waitingVal){
   
-        lcdDisplayFare()
+        lcdDisplayFare();
         lcd.setCursor(0,1);
         lcdDisplayDistance();
         
@@ -467,7 +470,7 @@ void endJourney(){
   lcdDisplayFare();
   lcd.setCursor(0,1);
   
-  lcdDisplayDistance()
+  lcdDisplayDistance();
   delay(5000);
   //display in the 7 segments also
   
@@ -477,6 +480,8 @@ void endJourney(){
   
   lcd.clear();
 }
+
+
 void waiting(){
   lcd.clear();
   lcd.print("Waiting");
@@ -485,7 +490,7 @@ void waiting(){
   delay(2000);
   lcd.clear();
   // lcd.setCursor(6,0);
-  lcdDisplayFare()
+  lcdDisplayFare();
   lcd.setCursor(0,1);
 
   //Display in the 7 segment
@@ -497,6 +502,8 @@ void waiting(){
   delay(2000);
   lcd.clear();
 }
+
+
 void summery(){//summery of the day
   lcd.clear();
   lcd.print("Summery");
@@ -518,6 +525,8 @@ void summery(){//summery of the day
   //can include the time also
   lcd.clear();
 }
+
+
 void receiveEvent(int howMany)
 {
  /* while(1 < Wire.available()) // loop through all but the last
@@ -558,7 +567,13 @@ void receiveEvent(int howMany)
     //totalDistance+=distance;
     //totalIncome+=cost;
     //totalTime+=time;
+    waitingVal=false;
     x=0;
+  }
+  else if(x==WAITING){
+    waitingVal=true;
+    
+    
   }
   
   //update cost waiting time and distance accordingly
